@@ -1,0 +1,21 @@
+[
+    {
+        "type": "simple",
+        "question": "What is the capital of France?"
+    },
+
+    {
+        "type": "debugging",
+        "question": "Why could a distributed database become inconsistent during a network partition?"
+    },
+
+    {
+        "type": "research",
+        "question": "Design a cognitive architecture that improves AI reasoning without retraining the model."
+    },
+
+    {
+        "type": "planning",
+        "question": "Create a strategy for scaling an AI startup from prototype to enterprise customers."
+    }
+]
