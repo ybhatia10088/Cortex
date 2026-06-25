@@ -9,14 +9,8 @@ from cortex.evaluator import Evaluator
 
 def main():
     llm = OllamaClient()
-
     controller = CognitiveController(llm)
-
-    engine = AdaptiveReasoningEngine(
-        llm,
-        controller
-    )
-
+    engine = AdaptiveReasoningEngine(llm, controller)
     evaluator = Evaluator()
 
     with open("benchmarks/questions.json", "r") as file:
@@ -25,29 +19,32 @@ def main():
     results = []
 
     for item in questions:
-        output = evaluator.evaluate(
-            engine,
-            item["question"]
-        )
-
+        output = evaluator.evaluate(engine, item["question"])
         output["type"] = item["type"]
-
         results.append(output)
 
     df = pd.DataFrame(results)
 
-    # Full raw outputs, including answers.
     df.to_csv(
         "benchmarks/results.csv",
         index=False
     )
 
-    # Compact metrics file for GitHub and charts.
-    summary = df[[
+    summary_columns = [
         "type",
+        "strategy",
+        "difficulty",
+        "uncertainty",
+        "effort_score",
+        "model_calls",
+        "candidate_count",
+        "selected_candidate",
+        "verifier_score",
         "latency",
         "characters"
-    ]].copy()
+    ]
+
+    summary = df[summary_columns].copy()
 
     summary.to_csv(
         "benchmarks/summary.csv",
@@ -55,7 +52,7 @@ def main():
     )
 
     print("\nBenchmark summary:")
-    print(summary)
+    print(summary.to_string(index=False))
 
 
 if __name__ == "__main__":

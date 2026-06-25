@@ -4,7 +4,7 @@ import re
 
 class CognitiveController:
     """
-    Estimates task complexity and deterministically routes a query
+    Estimates task complexity and routes a query
     to an inference-time reasoning strategy.
     """
 
@@ -38,15 +38,28 @@ Difficulty guide:
             match = re.search(r"\{.*\}", response, re.DOTALL)
             data = json.loads(match.group()) if match else json.loads(response)
 
-            difficulty = max(0.0, min(1.0, float(data.get("difficulty", 0.5))))
-            uncertainty = max(0.0, min(1.0, float(data.get("uncertainty", 0.5))))
+            difficulty = max(
+                0.0,
+                min(1.0, float(data.get("difficulty", 0.5)))
+            )
 
-            # Lightweight keyword boost for clearly open-ended reasoning tasks.
+            uncertainty = max(
+                0.0,
+                min(1.0, float(data.get("uncertainty", 0.5)))
+            )
+
             deep_terms = [
-                "design", "architecture", "strategy", "research",
-                "evaluate", "failure modes", "trade-offs",
-                "multiple candidate", "system"
+                "design",
+                "architecture",
+                "strategy",
+                "research",
+                "evaluate",
+                "failure modes",
+                "trade-offs",
+                "multiple candidate",
+                "system"
             ]
+
             if any(term in query.lower() for term in deep_terms):
                 difficulty = max(difficulty, 0.75)
 
@@ -54,7 +67,7 @@ Difficulty guide:
 
             if effort_score < 0.30:
                 strategy = "direct"
-            elif effort_score < 0.55:
+            elif effort_score < 0.50:
                 strategy = "deliberate"
             else:
                 strategy = "deep"
@@ -64,14 +77,25 @@ Difficulty guide:
                 "uncertainty": uncertainty,
                 "effort_score": round(effort_score, 2),
                 "strategy": strategy,
-                "reason": data.get("reason", "Estimated from task structure.")
+                "reason": data.get(
+                    "reason",
+                    "Estimated from task structure."
+                )
             }
 
-        except (json.JSONDecodeError, TypeError, ValueError, AttributeError):
+        except (
+            json.JSONDecodeError,
+            TypeError,
+            ValueError,
+            AttributeError
+        ):
             return {
                 "difficulty": 0.5,
                 "uncertainty": 0.5,
                 "effort_score": 0.5,
-                "strategy": "deliberate",
-                "reason": "Fallback allocation because model output was not valid JSON."
+                "strategy": "deep",
+                "reason": (
+                    "Fallback allocation because model output "
+                    "was not valid JSON."
+                )
             }

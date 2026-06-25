@@ -1,5 +1,5 @@
-type,latency,characters
-simple,7.21,31
-debugging,18.02,2876
-research,22.66,3508
-planning,19.98,2856
+type,strategy,difficulty,uncertainty,effort_score,model_calls,candidate_count,selected_candidate,verifier_score,latency,characters
+simple,direct,0.0,0.0,0.0,2,0,,,2.45,31
+debugging,deliberate,0.63,0.18,0.49,2,0,,,14.67,2317
+research,deep,0.75,0.02,0.53,6,3,3.0,0.75,71.47,2101
+planning,deep,0.75,0.05,0.54,6,3,3.0,0.8,107.49,2744

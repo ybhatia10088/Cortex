@@ -1,16 +1,16 @@
 # Cortex
 
-> A lightweight, model-agnostic test-time cognition layer that dynamically allocates reasoning effort based on estimated task difficulty and uncertainty.
+> A lightweight, model-agnostic test-time cognition prototype that adaptively allocates inference-time computation based on estimated task difficulty and uncertainty.
 
-Cortex is a small experimental controller built around a simple question:
+Cortex explores a simple question:
 
-**Should every LLM prompt receive the same amount of inference-time reasoning?**
+**Should every LLM prompt receive the same inference-time budget?**
 
-Instead of applying one reasoning strategy to every query, Cortex estimates task complexity and routes prompts through one of three compute policies:
+Instead of applying one reasoning workflow to every request, Cortex estimates task complexity and routes prompts through one of three policies:
 
 - **Direct** for simple factual questions
 - **Deliberate** for debugging and bounded analysis
-- **Deep** for architecture, planning, research, and multi-step reasoning tasks
+- **Deep** for architecture, planning, research, and multi-step reasoning tasks, using candidate search, verifier selection, and constraint enforcement
 
 The base model is not retrained or fine-tuned. Cortex operates outside model weights and changes only the inference-time workflow.
 
@@ -27,10 +27,9 @@ The base model is not retrained or fine-tuned. Cortex operates outside model wei
           |              |              |
        Direct        Deliberate        Deep
           |              |              |
-     concise answer   structured     decompose
-                      analysis       compare
-                                     critique
-                                     recommend
+     concise answer   structured     generate candidates
+                      analysis       verify candidates
+                                     enforce constraints
                          |
                          v
                     Local LLM
@@ -38,8 +37,8 @@ The base model is not retrained or fine-tuned. Cortex operates outside model wei
 
 ## How it works
 
-1. The controller asks the model to estimate task difficulty and uncertainty.
-2. Cortex computes an effort score:
+1. Cortex asks the underlying model to estimate task difficulty and uncertainty.
+2. It computes an effort score:
 
 ```text
 effort_score = 0.7 × difficulty + 0.3 × uncertainty
@@ -50,10 +49,38 @@ effort_score = 0.7 × difficulty + 0.3 × uncertainty
 | Effort score | Strategy | Intended use |
 |---|---|---|
 | Below 0.30 | Direct | Factual recall and simple transformations |
-| 0.30 to 0.55 | Deliberate | Debugging, explanations, bounded analysis |
-| 0.55 or higher | Deep | System design, planning, research, multi-step reasoning |
+| 0.30 to 0.50 | Deliberate | Debugging, explanations, bounded analysis |
+| 0.50 or higher | Deep | System design, planning, research, multi-step reasoning |
 
-4. The selected policy changes the prompt and inference workflow without changing model weights.
+4. The selected policy controls the inference-time workflow without changing model weights.
+
+## Deep workflow
+
+For high-effort tasks, Cortex performs selective test-time search:
+
+```text
+Query
+  |
+  v
+Controller routes to Deep
+  |
+  v
+Generate 3 candidate answers
+  |
+  v
+Verifier scores candidates
+  |
+  v
+Select best candidate
+  |
+  v
+Constraint editor checks fixed-weight requirements
+  |
+  v
+Return final answer
+```
+
+The deep workflow is designed to use extra inference-time compute only when the controller determines that the task justifies it.
 
 ## Example routing
 
@@ -64,22 +91,33 @@ effort_score = 0.7 × difficulty + 0.3 × uncertainty
 | “Design a cognitive architecture that improves AI reasoning without retraining the model.” | Deep |
 | “Create a strategy for scaling an AI startup from prototype to enterprise customers.” | Deep |
 
-## Benchmark observation
+## Adaptive test-time search benchmark
 
-The benchmark was run locally with `llama3.2` through Ollama.
+The benchmark was run locally with `llama3.2` through Ollama. It measures routing behavior and test-time compute allocation, not validated answer correctness.
 
-| Task type | Observed latency | Response length |
-|---|---:|---:|
-| Simple | 7.21 seconds | 31 characters |
-| Debugging | 18.02 seconds | 2,876 characters |
-| Research/design | 22.66 seconds | 3,508 characters |
-| Planning | 19.98 seconds | 2,856 characters |
+| Task type | Strategy | Model calls | Candidate answers | Verifier score | Observed latency |
+|---|---|---:|---:|---:|---:|
+| Simple | Direct | 2 | 0 | — | 2.45 seconds |
+| Debugging | Deliberate | 2 | 0 | — | 14.67 seconds |
+| Research/design | Deep | 6 | 3 | 0.75 | 71.47 seconds |
+| Planning | Deep | 6 | 3 | 0.80 | 107.49 seconds |
 
-The goal is not to claim a quality improvement from four examples. The observed behavior is that Cortex routed a simple task to minimal inference while assigning deeper inference-time workflows to open-ended tasks.
+For direct and deliberate tasks, Cortex uses one controller call and one answer call.
 
-![Latency by task](assets/latency_by_task.png)
+For deep tasks, it uses:
 
-![Response length by task](assets/response_length_by_task.png)
+1. Controller analysis
+2. Three distinct candidate-generation calls
+3. A verifier call to select the strongest candidate
+4. A constraint-editor call to ensure the selected answer remains within fixed-weight inference-time methods
+
+This experiment does not claim that deeper search universally improves answer quality. It demonstrates that Cortex allocates additional test-time computation only when its routing policy selects a high-effort strategy.
+
+![Observed latency by routing strategy](assets/latency_by_task.png)
+
+![Adaptive test-time model calls](assets/model_calls_by_task.png)
+
+![Candidate search budget](assets/candidate_budget_by_task.png)
 
 ## Project structure
 
@@ -87,9 +125,9 @@ The goal is not to claim a quality improvement from four examples. The observed 
 Cortex/
 ├── cortex/
 │   ├── controller.py          # Difficulty and uncertainty estimator
-│   ├── reasoning_engine.py    # Adaptive inference routing
+│   ├── reasoning_engine.py    # Adaptive routing and selective search
 │   ├── ollama_client.py       # Local model interface
-│   └── evaluator.py           # Latency and response-size tracking
+│   └── evaluator.py           # Benchmark metadata collection
 ├── benchmarks/
 │   ├── questions.json
 │   ├── run_benchmark.py
@@ -98,7 +136,8 @@ Cortex/
 │   └── results.csv
 ├── assets/
 │   ├── latency_by_task.png
-│   └── response_length_by_task.png
+│   ├── model_calls_by_task.png
+│   └── candidate_budget_by_task.png
 ├── demo.py
 ├── requirements.txt
 └── README.md
@@ -137,9 +176,10 @@ python3 benchmarks/plot_results.py
 
 - This is a proof of concept, not a trained routing policy.
 - Difficulty and uncertainty are self-estimated by the underlying model, so routing can be noisy.
+- The verifier is also an LLM call and can make incorrect selections.
 - Latency includes local hardware and Ollama runtime overhead.
-- The benchmark measures routing behavior and compute allocation, not validated answer correctness.
-- A stronger version would use calibrated uncertainty, answer verification, task-specific evaluators, and controlled comparisons against fixed-compute baselines.
+- The benchmark measures routing behavior and compute allocation, not objectively validated answer correctness.
+- A stronger version would use calibrated uncertainty, task-specific validators, external tools, fixed-compute baselines, and controlled quality comparisons.
 
 ## Inspiration
 
